@@ -61,8 +61,6 @@ class TradingEngine:
         p_match = self.positions.get_portfolio(match.account_id)
         o_post = self.orderbook.get_by_account_id(p_post.account_id)
         o_match = self.orderbook.get_by_account_id(p_match.account_id)
-        p_post.calc_risk(o_post.risk.risk)
-        p_match.calc_risk(o_match.risk.risk)
 
         # store trade
         if post.side == Order.bid:
@@ -78,7 +76,7 @@ class TradingEngine:
 
     def place(self, order):
         """
-        This function takes an order and places it on the book to the 
+        This function takes an order and places it on the book to the
         maximum possible extent. It will use as resources contrary orders,
         contrary coupons, and cash. It returns a dictionary containing all
         incidents related to the placement.
@@ -90,10 +88,7 @@ class TradingEngine:
             self.positions.add_portfolio(u)
             p = self.positions.get_portfolio(u)
         inst = order.instrument_id
-        side = order.side
-        price = order.price
         cash_total = p.cash_balance
-        cash = p.get_unlocked_cash()
         coupon = p.get_coupon(inst)
 
         # First thing: are there contrary orders?
@@ -121,19 +116,25 @@ class TradingEngine:
                     net_shares = i.num_shares - order.num_shares
                     results.cancelled_shares += order.num_shares
                     results.remaining_shares = net_shares
+                    old_locked_cash = p.get_locked_cash_for_order_risks(account_handler.risk.risk)
                     self.orderbook.remove_shares_from_order(i, order.num_shares)
-                    results.lock.append(p.calc_risk(account_handler.risk.risk))
+                    new_locked_cash = p.get_locked_cash_for_order_risks(account_handler.risk.risk)
+                    results.lock.append(old_locked_cash, new_locked_cash)
                     return results
                 if i.num_shares == order.num_shares:
                     results.cancelled_shares += i.num_shares
+                    old_locked_cash = p.get_locked_cash_for_order_risks(account_handler.risk.risk)
                     self.orderbook.remove_order(i)
-                    results.lock.append(p.calc_risk(account_handler.risk.risk))
+                    new_locked_cash = p.get_locked_cash_for_order_risks(account_handler.risk.risk)
+                    results.lock.append(old_locked_cash, new_locked_cash)
                     return results
                 if i.num_shares < order.num_shares:
                     results.cancelled_shares += i.num_shares
                     order.num_shares -= i.num_shares
+                    old_locked_cash = p.get_locked_cash_for_order_risks(account_handler.risk.risk)
                     self.orderbook.remove_order(i)
-                    results.lock.append(p.calc_risk(account_handler.risk.risk))
+                    new_locked_cash = p.get_locked_cash_for_order_risks(account_handler.risk.risk)
+                    results.lock.append(old_locked_cash, new_locked_cash)
             else:
                 return results
 
@@ -149,11 +150,6 @@ class TradingEngine:
 
         # Add, lock, and execute.
         self.orderbook.add_order(order)
-        if account_handler:
-            p.calc_risk(account_handler.risk.risk)
-        else:
-            account_handler = self.orderbook.get_by_account_id(u)
-            p.calc_risk(account_handler.risk.risk)
         while True:
             cross = self.orderbook.get_priority_cross(inst)
             if not cross:

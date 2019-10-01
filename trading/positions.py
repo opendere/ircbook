@@ -56,7 +56,7 @@ class Portfolio:
     portfolio of a single account.
     """
 
-    def __init__(self, account_id, coupons=None, cash_balance=D(1000000), locked_cash=D(0)):
+    def __init__(self, account_id, coupons=None, cash_balance=D(1000000)):
         if coupons is None:
             coupons = []
         self.account_id = account_id
@@ -64,14 +64,13 @@ class Portfolio:
         if D(cash_balance) < D(0):
             raise ValueError("Cash must be a non-negative Decimal.")
         self.cash_balance = D(cash_balance)
-        self.locked_cash = D(locked_cash)
 
         for coupon in coupons:
             c = Coupon(*coupon)
             self.coupons[c.instrument_id] = c
 
-    def get_unlocked_cash(self):
-        return self.cash_balance - self.locked_cash
+    def get_unlocked_cash(self, order_risks):
+        return self.cash_balance - self.get_locked_cash_for_order_risks(order_risks)
 
     def get_coupon(self, instrument_id):
         if instrument_id in self.coupons:
@@ -133,13 +132,18 @@ class Portfolio:
         if self.coupons[new_coupon.instrument_id].get_num_shares() == D(0):
             del self.coupons[new_coupon.instrument_id]
 
-    def calc_risk(self, risk):
-        """Calculates how much cash should be locked for a given user and risk."""
-        locked = self.locked_cash
-        locking = D(0)
-        for inst in risk:
+    def get_locked_cash_for_order_risks(self, order_risks):
+        """
+        determine the locked_cash based on
+        - positions in portfolio and
+        - risks from orders
+
+        this function replaces self.locked_cash
+        """
+        locked_cash = D(0)
+        for inst in order_risks:
             c = self.get_coupon(inst)
-            r = risk[inst]
+            r = order_risks[inst]
             a, b = D(0), D(0)
             if "a" in r:
                 a = r["a"]
@@ -150,10 +154,8 @@ class Portfolio:
                     a -= D(100) * c.shares
                 elif c.side == Coupon.no:
                     b -= D(100) * c.shares
-            locking += max(a, b)
-        result = locked, locking
-        self.locked_cash = locking
-        return result
+            locked_cash += max(a, b)
+        return locked_cash
 
     def afford(self, risk, order):
         locking = D(0)
@@ -195,7 +197,7 @@ class Portfolio:
         coupons = []
         for i in self.coupons.values():
             coupons.append(i.dump())
-        return self.account_id, coupons, str(self.cash_balance), str(self.locked_cash)
+        return self.account_id, coupons, str(self.cash_balance)
 
     def __eq__(self, o):
         return isinstance(o, Portfolio) and self.__dict__ == o.__dict__
