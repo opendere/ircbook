@@ -3,7 +3,8 @@ from random import randint
 
 import pytest
 
-from trading.orderbook import OrderBook, Order, AccountOrders, InstrumentOrders
+from trading.orderbook import OrderBook, Order, AccountOrders, InstrumentOrders, Risk
+from trading.positions import Portfolio, Coupon
 
 
 def test_order_creation_validation():
@@ -174,3 +175,21 @@ def test_order_dump_and_construct():
     ob.add_order(o)
     o2 = Order(*o.dump())
     assert (str(o) == str(o2) and o.dump() == o2.dump())
+
+
+# Bug Fix
+def test_collateral_works_with_dead_orders():
+    p = Portfolio('u')
+    c = Coupon("u", "i", D(100), Coupon.yes)
+    p.add_coupon(c, cost=D(50))
+
+    # no orders, no locked cash
+    assert p.get_locked_cash_for_order_risks({}) == D(0)
+
+    r = Risk()
+    r.add(Order("u", Order.bid, "i", D(2), D(11)))
+    r.add(Order("u", Order.bid, "i", D(3), D(20)))
+    r.add(Order("u", Order.ask, "i", D(5), D(5)))
+    r.add(Order("u", Order.ask, "i", D(20), D(3)))
+    # assert same as p.locked_cash after p.calc_risk result (from previous version)
+    assert p.get_locked_cash_for_order_risks(r.risk) == D(82)

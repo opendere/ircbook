@@ -393,7 +393,12 @@ def do_cash(s, e, respond):
         por = users.positions.get_portfolio(users.get_user(vmask(e.source)).name)
     else:
         por = users.positions.get_portfolio(users.get_user(s[0]).name)
-    respond("{0} ({1})".format(por.cash_balance, por.get_unlocked_cash()))
+
+    order_risks = users.ob.get_by_account_id(i).risk.risk
+    respond("{0} ({1})".format(
+        por.cash_balance,
+        por.get_unlocked_cash(order_risks)
+    ))
 
 
 commands.registry.reg("cash", do_cash)
