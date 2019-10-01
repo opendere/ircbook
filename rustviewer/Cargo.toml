@@ -1,0 +1,14 @@
+[package]
+name = "rustviewer"
+version = "0.1.0"
+authors = ["david"]
+build = "build.rs"
+
+[build-dependencies]
+serde_codegen = "*"
+syntex = "*"
+
+[dependencies]
+fastcgi = "1.0.0-beta"
+serde = "*"
+serde_json = "*"
